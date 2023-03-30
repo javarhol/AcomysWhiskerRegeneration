@@ -36,11 +36,13 @@ figure1 <- ggplot(Aconinetydpi, aes(injury, `axon count`)) +
   scale_x_discrete(labels=c("ctrl whiskers", "90dpi whiskers"))+
   scale_y_continuous(limits = c(0,250), expand=c(0,0))+
   guides(color="none", fill="none")+
-  theme_cowplot()
+  theme_cowplot(20)
 
 figure1
 
-ggsave("/Users/justinvarholick/Documents/GitHub/AcomysWhiskerRegeneration/Axont counts 90dpi/boxplot_90dpiaxoncount.png", figure1, units="cm", width = 19, height = 22, device='png', dpi=300)
+ggsave("/Users/justinvarholick/Documents/GitHub/AcomysWhiskerRegeneration/Axont counts 90dpi/boxplot_90dpiaxoncount.png", figure1, device="png", scale = .33,
+       width = 71, height = 36, 
+       units="cm", dpi=300)
 ```
 
 
