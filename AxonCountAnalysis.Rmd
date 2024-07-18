@@ -1,0 +1,223 @@
+---
+title: "Axon Comparisons"
+author: "Justin Varholick"
+date: "2024-06-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Library
+```{r}
+library(ggplot2)
+library(tidyverse)
+library(readxl)
+library(cowplot)
+library(see)
+library(ggbeeswarm)
+
+library(lme4)
+library(lmerTest)
+library(rstatix)
+
+library(extrafont)
+```
+## fonts
+```{r}
+library(extrafont)
+font_import(pattern = "Arial")
+loadfonts()
+```
+
+
+## data
+```{r}
+aco <- read_excel("data/acomys_axon_counts.xlsx", sheet = "empty rows removed")
+mus <- read_excel("data/mus_axon_counts.xlsx", sheet = "r")
+
+left_right <- read.csv("data/AcoLateralComparison_data.csv")
+
+aco_regen <- read_excel("data/acomys_regenerated_axon_counts.xlsx")
+```
+
+## Aco rows and cols
+### plot
+```{r}
+
+hist(aco$count)
+shapiro.test(aco$count)
+
+aco_means <- aco %>% 
+  group_by(Letter, Number) %>% 
+  summarise(mean_count = mean(count))
+
+aco_means2 <- aco %>% 
+  group_by(Number) %>% 
+  summarise(mean_count = mean(count), sd_count = sd(count))
+
+aco_means3 <- aco %>% 
+  group_by(Letter) %>% 
+  summarise(mean_count = mean(count), sd_count = sd(count))
+
+aco_hm <- ggplot(aco_means, aes(Number, Letter, fill = mean_count)) +
+  geom_tile() +
+  geom_text(aes(label = round(mean_count, 1)), size = 8/.pt) +
+  scale_fill_gradient(low = "white", high = "#0072B2") +
+  #scale_fill_viridis_c(option = "B") +
+  scale_y_discrete(limits = rev) +
+  scale_x_continuous(breaks = c(0,1,2,3,4,5,6,7,8)) +
+  xlab("Whisker Number") + ylab("Whisker Letter") +
+  labs(fill = "Mean \nAxon Count") +
+  theme_minimal_grid(font_size = 8, font_family = "Arial")
+
+aco_hm
+
+aco <- aco %>% 
+  mutate(LetterNum = case_when(Letter == "A" ~ 1,
+                               Letter == "B" ~ 2,
+                               Letter == "C" ~ 3,
+                               Letter == "D" ~ 4,
+                               Letter == "E" ~ 5))
+
+ggplot(aco, aes(Number, count)) +
+  stat_summary(fun = "mean", geom = "col", color = "black", fill = "white") +
+  geom_jitter(aes(fill = LetterNum), color = "black", pch = 21, size = 5, width = 0.2) + 
+  scale_fill_gradient(low = "#0072B2", high = "white", guide = "legend", labels = c("A", "B", "C", "D", "E")) +
+  scale_x_continuous(breaks = c(0,1,2,3,4,5,6,7,8)) +
+  scale_y_continuous(expand = c(0,0), limits = c(0,250)) +
+  labs(y = "Axon Count", x = "Whisker Number", fill = "Whisker \nLetter") +
+  theme_cowplot()
+
+ggplot(aco, aes(Letter, count)) +
+  stat_summary(fun = "mean", geom = "col", color = "black", fill = "white") +
+  geom_jitter(aes(fill = Number), color = "black", pch = 21, size = 5, width = 0.2) + 
+  scale_fill_gradient(low = "#0072B2", high = "white") +
+  scale_y_continuous(expand = c(0,0), limits = c(0,250)) +
+  labs(y = "Axon Count", x = "Whisker Letter", fill = "Whisker \nNumber") +
+  theme_cowplot()
+
+```
+### stats
+```{r}
+aco_mdl_0 <- lmer(count ~ Letter + (1|ID), data = aco)
+aco_mdl_1 <- lmer(count ~ Letter + as.factor(Number) + (1|ID), data = aco)
+aco_mdl_2 <- lmer(count ~ Letter + as.factor(Number) + Letter*as.factor(Number) + (1|ID), data = aco)
+
+anova(aco_mdl_0, aco_mdl_1, aco_mdl_2)
+anova(aco_mdl_1)
+summary(aco_mdl_1)
+```
+
+## Aco v Mus
+### plots
+```{r}
+aco <- mutate(aco, Species = "Acomys")
+mus <- mutate(mus, Species = "Mus")
+mus <- mutate(mus, LetterNum = case_when(Letter == "A" ~ 1,
+                               Letter == "B" ~ 2,
+                               Letter == "C" ~ 3,
+                               Letter == "D" ~ 4,
+                               Letter == "E" ~ 5))
+
+aco_mus <- rbind(aco, mus)
+
+aco_mus_plot <- ggplot(aco_mus, aes(Species, count, fill = Species)) +
+  stat_summary(fun = "mean", geom = "col", width = 0.75, color = "black") +
+  geom_jitter2(alpha = 0.7, size = 2, width = 0.2) +
+  scale_y_continuous(expand = c(0,0), limits = c(0,255)) +
+  labs(y = "Axon Count", x = "") +
+  scale_fill_okabeito() +
+  guides(fill = "none") +
+  theme_cowplot(font_size = 8, font_family = "Arial") +
+  theme(axis.text.x.bottom = element_text(face = "italic"))
+  
+aco_mus_plot
+```
+### stats
+```{r}
+acomus_mdl_0 <- lmer(count ~ Species + (1|ID), data = aco_mus)
+acomus_mdl_1 <- lmer(count ~ Species + Letter + as.factor(Number) + (1|ID), data = aco_mus)
+
+anova(acomus_mdl_0, acomus_mdl_1)
+anova(acomus_mdl_1)
+
+```
+
+## Aco Left Right
+### stats
+```{r}
+hist(left_right$Count)
+shapiro.test(left_right$Count)
+
+left <- filter(left_right, WP.Side == "LWP")$Count
+right <- filter(left_right, WP.Side == "RWP")$Count
+
+t.test(left, right, paired = TRUE)
+# this method leads to pseudoreplication bc it doesn't account for AnimalID
+
+lr_model0 <- lmer(Count ~ WP.Side + (1|AnimalID), data = left_right)
+lr_model1 <- lmer(Count ~ WP.Side + Whisker.Position + (1|AnimalID), data = left_right)
+
+anova(lr_model0, lr_model1)
+anova(lr_model1)
+summary(lr_model1)
+
+```
+
+
+
+## Regen vs Uninj
+```{r}
+aco_regen_long <- pivot_longer(aco_regen, cols = c("regen.count", "uninj.count"), names_to = "treatment", values_to = "count")
+hist(aco_regen_long$count)
+shapiro.test(aco_regen_long$count)
+
+t.test(aco_regen$uninj.count, aco_regen$regen.count, paired = TRUE)
+# this method leads to pseudoreplication bc it doesn't account for AnimalID
+
+aco_regen_long$treatment <- factor(aco_regen_long$treatment, levels = c("uninj.count", "regen.count"))
+
+aco_regen_model0 <- lmer(count ~ treatment + (1|AnimalID), data = aco_regen_long)
+aco_regen_model1 <- lmer(count ~ treatment + Whisker.Position + (1|AnimalID), data = aco_regen_long)
+
+anova(aco_regen_model0, aco_regen_model1)
+anova(aco_regen_model1)
+summary(aco_regen_model1)
+
+```
+
+
+```{r}
+aco_regen_long$treatment <- factor(aco_regen_long$treatment, levels = c("uninj.count", "regen.count"))
+
+aco_regen_long <- mutate(aco_regen_long, grp = paste(AnimalID, Whisker.Position, sep = "-"))
+
+aco_regen_long$treatment1 <- jitter(as.numeric(factor(aco_regen_long$treatment)), amount = 0.2)
+aco_regen_long$count1 <- jitter(aco_regen_long$count, amount = 0.2)
+
+#pd <- position_jitter(width = 0.2, seed = 1)
+
+regen_plot <- ggplot(aco_regen_long, aes(treatment, count, fill = treatment)) +
+  stat_summary(fun = "mean", geom = "col", width = 0.75, color = "black") +
+  geom_point(aes(x = treatment1, y = count1, shape = AnimalID), alpha = 0.7, size = 1) +
+  geom_line(aes(x = treatment1, y = count1, group = grp), size = 0.25) +
+  scale_y_continuous(expand = c(0,0), limits = c(0,255)) +
+  scale_x_discrete(labels = c("Uninjured \nWhiskers", "Regenerated \nWhiskers")) +
+  labs(y = "Axon Count", x = "", shape = "Animal \nID") +
+  scale_fill_okabeito(order = 3:4) +
+  scale_shape_manual(values = c(15, 16, 17, 8), labels = c(1, 2, 3, 4)) +
+  guides(fill = "none") +
+  theme_cowplot(font_size = 8, font_family = "Arial")
+
+regen_plot
+```
+## panel graph
+```{r}
+bottom_plot <- plot_grid(aco_mus_plot, regen_plot, align = "h")
+
+plot_grid(aco_hm, bottom_plot, nrow = 2)
+ggsave("Fig4_Axon_Count.png", dpi = 300, height = 10.5, width = 10.5, unit = "cm")
+```
+
